@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCP Dump Visualizer</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 TCP Dump Visualizer</h1>
+            <p class="subtitle">Analyze and visualize your network captures</p>
+        </header>
+
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Drop your PCAP file here or click to browse</div>
+                <div class="upload-subtext">Supports .pcap and .pcapng files</div>
+                <input type="file" id="fileInput" accept=".pcap,.pcapng,.cap">
+            </div>
+        </div>
+
+        <div id="captureError" class="capture-error hidden"></div>
+        <div id="captureInfo" class="capture-info hidden"></div>
+        <div id="loadingSection" class="loading hidden">
+            <div>⏳ Parsing capture file...</div>
+        </div>
+
+        <div id="resultsSection" class="hidden">
+            <div class="filter-section">
+                <div class="filter-group">
+                    <input type="text" class="filter-input" id="filterIP" placeholder="Filter by IP address...">
+                    <input type="text" class="filter-input" id="filterPort" placeholder="Filter by port...">
+                    <select class="filter-input" id="filterProtocol" style="flex: 0 0 150px;">
+                        <option value="">All Protocols</option>
+                        <option value="TCP">TCP</option>
+                        <option value="UDP">UDP</option>
+                        <option value="ICMP">ICMP</option>
+                    </select>
+                    <button class="btn" id="applyFilter">Apply Filters</button>
+                    <button class="btn" id="clearFilter">Clear</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Packets</div>
+                    <div class="stat-value" id="statTotal">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">TCP Packets</div>
+                    <div class="stat-value" id="statTCP">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">UDP Packets</div>
+                    <div class="stat-value" id="statUDP">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Unique IPs</div>
+                    <div class="stat-value" id="statIPs">0</div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <div class="chart-title">Protocol Distribution</div>
+                    <canvas id="protocolChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Packet Timeline</div>
+                    <canvas id="timelineChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Top Source IPs</div>
+                    <canvas id="srcIPChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Top Destination Ports</div>
+                    <canvas id="dstPortChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">Connection Flows (Top 20)</div>
+                <div class="flow-diagram" id="flowDiagram"></div>
+            </div>
+
+            <div class="table-container">
+                <div class="chart-title">Packet Details</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Time</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Protocol</th>
+                            <th>Length</th>
+                            <th>Info</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packetTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="./vendor/chart.umd.min.js"></script>
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

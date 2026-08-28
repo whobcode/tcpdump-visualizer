@@ -1,0 +1,19 @@
+{
+  "name": "tcpdump-visualizer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/parse.test.mjs",
+    "fixtures": "python3 test/make_fixtures.py",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "NODE_ENV=production npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0"
+  }
+}
