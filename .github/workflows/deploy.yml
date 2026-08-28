@@ -1,8 +1,5 @@
 name: Deploy to Cloudflare
 
-# Reconstructed Worker repo. Gated on CLOUDFLARE_API_TOKEN: runs green and
-# no-ops until the secret exists, then deploys via wrangler.
-
 on:
   push:
     branches: [main]
@@ -15,36 +12,51 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
+    # Job level, not step level: the `secrets` context is unavailable in a
+    # step's `if:` condition, but `env` is.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
     steps:
-      - name: Check for deploy secret
+      - name: Check for deploy credentials
         id: gate
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -n "$CF_TOKEN" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT";
-          else echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "::notice::CLOUDFLARE_API_TOKEN not set - skipping."; fi
-      - name: Checkout
-        if: steps.gate.outputs.enabled == 'true'
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        if: steps.gate.outputs.enabled == 'true'
-        uses: actions/setup-node@v4
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] || { [ -n "$CLOUDFLARE_API_KEY" ] && [ -n "$CLOUDFLARE_EMAIL" ]; }; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Cloudflare credentials set - skipping deploy."
+          fi
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
-        if: steps.gate.outputs.enabled == 'true'
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      # Runs regardless of whether a deploy will happen: a parser regression
+      # should fail the check on any push, not only on deployable ones.
+      - name: Test
         run: |
-          if [ -f package-lock.json ]; then npm ci --legacy-peer-deps || npm install --legacy-peer-deps;
-          elif [ -f package.json ]; then npm install --legacy-peer-deps; else echo "no package.json"; fi
-      - name: Deploy to Cloudflare (with retry)
+          python3 test/make_fixtures.py
+          npm test
+
+      # wrangler deploys ./public as the assets directory, so a deploy without
+      # this ships an empty site.
+      - name: Build
         if: steps.gate.outputs.enabled == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: NODE_ENV=production npm run build
+
+      - name: Deploy
+        if: steps.gate.outputs.enabled == 'true'
         run: |
           for attempt in 1 2 3; do
             echo "::group::Deploy attempt $attempt"
-            if npx --yes wrangler@latest deploy; then echo "::endgroup::"; echo "ok $attempt"; exit 0; fi
+            if npx wrangler deploy; then echo "::endgroup::"; exit 0; fi
             echo "::endgroup::"; echo "retry in 15s"; sleep 15
           done
           echo "All deploy attempts failed"; exit 1
