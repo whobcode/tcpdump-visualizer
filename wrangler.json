@@ -2,10 +2,22 @@
   "name": "tcpdump-visualizer",
   "main": "src/worker.js",
   "compatibility_date": "2025-04-01",
+
+  // custom_domain creates the DNS record and route on deploy, so the hostname
+  // never has to be managed by hand.
+  "routes": [
+    { "pattern": "tcp.hwmnbn.me", "custom_domain": true }
+  ],
+
+  // Retires the *.workers.dev hostname. Leaving it up would keep a second,
+  // unmanaged address serving the same Worker.
+  "workers_dev": false,
+
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
   },
+
   "observability": {
     "enabled": true
   }
