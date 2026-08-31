@@ -35,6 +35,48 @@ for (const name of readdirSync(DIR).sort()) {
     continue;
   }
 
+  if (name === "tcp-session.pcap") {
+    check("packet count", r.packets.length, 32);
+
+    const syn = r.packets[0];
+    check("SYN options: MSS", syn.tcpOptions.mss, 1460);
+    check("SYN options: window scale", syn.tcpOptions.windowScale, 7);
+    check("SYN options: SACK permitted", syn.tcpOptions.sackPermitted, true);
+    check("SYN sequence number", syn.seq, 1000);
+    check("SYN counts one sequence number, carries no payload", syn.payloadLength, 0);
+
+    // Ethernet pads this frame to 60 bytes. Measuring the payload from the
+    // frame rather than the IP header would report 6 bytes of data here.
+    const paddedAck = r.packets[2];
+    check("padded ACK frame is 60 bytes", paddedAck.length, 60);
+    check("padded ACK has no payload", paddedAck.payloadLength, 0);
+    check("padded ACK has no payload bytes", paddedAck.payload, null);
+
+    const request = r.packets[3];
+    check("request payload length", request.payloadLength, 69);
+    check("request payload present", request.payload.length, 69);
+    check("flags decoded", request.flagNames, ["PSH", "ACK"]);
+
+    check("RST decoded", r.packets[25].flagNames, ["RST", "ACK"]);
+    check("UDP payload length", r.packets[30].protocol, "UDP");
+    continue;
+  }
+
+  if (name === "snaplen-96.pcap") {
+    check("packet count", r.packets.length, 3);
+    const cut = r.packets[2];
+    check("wire length preserved", cut.length, 454);
+    check("captured length", cut.capturedLength, 96);
+    check("marked as cut short", cut.snaplenTruncated, true);
+    // The header survived the snaplen, so the ports are still trustworthy;
+    // only the payload is a fragment.
+    check("ports still readable", [cut.srcPort, cut.dstPort], [40100, 80]);
+    check("payload reported as truncated", cut.payloadTruncated, true);
+    check("payload length is what the sender sent", cut.payloadLength, 400);
+    check("payload bytes are what was kept", cut.payload.length, 42);
+    continue;
+  }
+
   check("packet count", r.packets.length, 3);
   const [syn, synack, v6] = r.packets;
   check("v4 src", syn.src, "192.168.12.122");
@@ -52,5 +94,5 @@ for (const name of readdirSync(DIR).sort()) {
   check("timestamp fraction ~0.123456", Math.abs(t - 1700000000.123456) < 1e-6, true);
 }
 
-console.log(failures ? `\n  ${failures} FAILURE(S)` : "\n  all checks passed");
+console.log(failures ? `\n  ${failures} FAILURE(S)` : "\n  all parser checks passed");
 process.exit(failures ? 1 : 0);

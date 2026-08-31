@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test/parse.test.mjs",
+    "test": "node test/parse.test.mjs && node test/analyze.test.mjs",
     "fixtures": "python3 test/make_fixtures.py",
     "dev": "npm run build && wrangler dev",
     "deploy": "NODE_ENV=production npm run build && wrangler deploy"

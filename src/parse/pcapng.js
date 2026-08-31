@@ -93,6 +93,8 @@ export function parsePcapng(buffer) {
       const tsHigh = view.getUint32(offset + 12, littleEndian);
       const tsLow = view.getUint32(offset + 16, littleEndian);
       const capturedLen = view.getUint32(offset + 20, littleEndian);
+      // Wire length; larger than capturedLen when a snaplen cut the packet.
+      const originalLen = view.getUint32(offset + 24, littleEndian);
       const iface = interfaces[ifaceId] || { linktype: 1, divisor: 1e6 };
 
       // 64-bit count assembled in floating point: exact to 2^53, which is
@@ -105,19 +107,21 @@ export function parsePcapng(buffer) {
       if (dataStart + capturedLen <= bodyEnd) {
         packets.push(parsePacket(
           new Uint8Array(buffer, dataStart, capturedLen),
-          seconds, fraction, num++, iface.linktype, littleEndian,
+          seconds, fraction, num++, iface.linktype, littleEndian, originalLen,
         ));
       }
     } else if (type === BLOCK.SIMPLE_PACKET) {
       const iface = interfaces[0] || { linktype: 1, divisor: 1e6 };
       const dataStart = offset + 12;
-      const capturedLen = Math.min(
-        view.getUint32(offset + 8, littleEndian), bodyEnd - dataStart);
+      // A simple packet block records only the original length; how much of it
+      // is present is whatever fits in the block.
+      const originalLen = view.getUint32(offset + 8, littleEndian);
+      const capturedLen = Math.min(originalLen, bodyEnd - dataStart);
       if (capturedLen > 0) {
         // Simple packet blocks carry no timestamp at all.
         packets.push(parsePacket(
           new Uint8Array(buffer, dataStart, capturedLen),
-          0, 0, num++, iface.linktype, littleEndian,
+          0, 0, num++, iface.linktype, littleEndian, originalLen,
         ));
       }
     }
