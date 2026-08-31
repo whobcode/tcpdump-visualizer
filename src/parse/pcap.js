@@ -60,13 +60,17 @@ export function parsePcap(buffer) {
     const tsSec = view.getUint32(offset, littleEndian);
     const tsFrac = view.getUint32(offset + 4, littleEndian);
     const inclLen = view.getUint32(offset + 8, littleEndian);
+    // The wire length, which exceeds inclLen when the capture was taken with a
+    // snaplen. Carrying it is what lets the analyser say "this payload is a
+    // fragment" rather than drawing conclusions from the fragment.
+    const origLen = view.getUint32(offset + 12, littleEndian);
     offset += 16;
 
     if (inclLen > buffer.byteLength - offset) { truncated = true; break; }
 
     packets.push(parsePacket(
       new Uint8Array(buffer, offset, inclLen),
-      tsSec, tsFrac / divisor, num++, linktype, littleEndian,
+      tsSec, tsFrac / divisor, num++, linktype, littleEndian, origLen,
     ));
     offset += inclLen;
   }

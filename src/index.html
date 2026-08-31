@@ -3,109 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TCP Dump Visualizer</title>
+    <title>tcpdump visualizer</title>
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🌐 TCP Dump Visualizer</h1>
-            <p class="subtitle">Analyze and visualize your network captures</p>
+            <h1>tcpdump visualizer</h1>
+            <p class="subtitle">
+                Conversations, TCP streams and what went wrong, from a pcap.
+                <strong>Nothing leaves this browser.</strong>
+            </p>
         </header>
 
-        <div class="upload-section">
-            <div class="upload-area" id="uploadArea">
-                <div class="upload-icon">📁</div>
-                <div class="upload-text">Drop your PCAP file here or click to browse</div>
-                <div class="upload-subtext">Supports .pcap and .pcapng files</div>
-                <input type="file" id="fileInput" accept=".pcap,.pcapng,.cap">
-            </div>
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-text">Drop a capture here, or click to choose one</div>
+            <div class="upload-subtext">.pcap and .pcapng — parsed locally, never uploaded</div>
+            <input type="file" id="fileInput" accept=".pcap,.pcapng,.cap,.dmp">
         </div>
 
         <div id="captureError" class="capture-error hidden"></div>
         <div id="captureInfo" class="capture-info hidden"></div>
-        <div id="loadingSection" class="loading hidden">
-            <div>⏳ Parsing capture file...</div>
-        </div>
+        <div id="loadingSection" class="loading hidden">Parsing capture…</div>
 
         <div id="resultsSection" class="hidden">
-            <div class="filter-section">
-                <div class="filter-group">
-                    <input type="text" class="filter-input" id="filterIP" placeholder="Filter by IP address...">
-                    <input type="text" class="filter-input" id="filterPort" placeholder="Filter by port...">
-                    <select class="filter-input" id="filterProtocol" style="flex: 0 0 150px;">
-                        <option value="">All Protocols</option>
-                        <option value="TCP">TCP</option>
-                        <option value="UDP">UDP</option>
-                        <option value="ICMP">ICMP</option>
-                    </select>
-                    <button class="btn" id="applyFilter">Apply Filters</button>
-                    <button class="btn" id="clearFilter">Clear</button>
-                </div>
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <div class="tabs" role="tablist" id="tabs">
+                <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+                <button class="tab" role="tab" data-tab="conversations" aria-selected="false">Conversations<span class="badge" id="badgeConversations">0</span></button>
+                <button class="tab" role="tab" data-tab="endpoints" aria-selected="false">Endpoints<span class="badge" id="badgeEndpoints">0</span></button>
+                <button class="tab" role="tab" data-tab="streams" aria-selected="false">TCP streams<span class="badge" id="badgeStreams">0</span></button>
+                <button class="tab" role="tab" data-tab="expert" aria-selected="false">Findings<span class="badge" id="badgeFindings">0</span></button>
+                <button class="tab" role="tab" data-tab="packets" aria-selected="false">Packets<span class="badge" id="badgePackets">0</span></button>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Packets</div>
-                    <div class="stat-value" id="statTotal">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">TCP Packets</div>
-                    <div class="stat-value" id="statTCP">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">UDP Packets</div>
-                    <div class="stat-value" id="statUDP">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Unique IPs</div>
-                    <div class="stat-value" id="statIPs">0</div>
-                </div>
+            <div class="filter-bar" id="filterBar">
+                <input type="text" class="filter-input" id="filterText"
+                       placeholder="Filter — address, port, protocol, hostname, or text from the info column">
+                <select class="filter-input" id="filterProtocol">
+                    <option value="">Any protocol</option>
+                </select>
+                <button class="btn" id="filterProblems" aria-pressed="false">Problems only</button>
+                <button class="btn" id="clearFilter">Clear</button>
+                <p class="filter-hint" id="filterHint"></p>
             </div>
 
-            <div class="charts-container">
-                <div class="chart-card">
-                    <div class="chart-title">Protocol Distribution</div>
-                    <canvas id="protocolChart"></canvas>
+            <!-- Overview -->
+            <section id="tab-overview" class="tab-panel">
+                <div class="charts-grid">
+                    <div class="card">
+                        <div class="card-title">Throughput</div>
+                        <div class="card-note">Bits per second over the capture's own span.</div>
+                        <div class="chart-holder"><canvas id="throughputChart"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Protocols</div>
+                        <div class="card-note">By bytes on the wire; the tables carry the exact figures.</div>
+                        <div class="chart-holder"><canvas id="protocolChart"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Top talkers</div>
+                        <div class="card-note">Total bytes sent and received per host.</div>
+                        <div class="chart-holder"><canvas id="talkerChart"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Top services</div>
+                        <div class="card-note">By the server-side port of each conversation.</div>
+                        <div class="chart-holder"><canvas id="serviceChart"></canvas></div>
+                    </div>
                 </div>
-                <div class="chart-card">
-                    <div class="chart-title">Packet Timeline</div>
-                    <canvas id="timelineChart"></canvas>
-                </div>
-                <div class="chart-card">
-                    <div class="chart-title">Top Source IPs</div>
-                    <canvas id="srcIPChart"></canvas>
-                </div>
-                <div class="chart-card">
-                    <div class="chart-title">Top Destination Ports</div>
-                    <canvas id="dstPortChart"></canvas>
-                </div>
-            </div>
+                <div class="card" id="overviewSummary"></div>
+            </section>
 
-            <div class="chart-card">
-                <div class="chart-title">Connection Flows (Top 20)</div>
-                <div class="flow-diagram" id="flowDiagram"></div>
-            </div>
+            <!-- Conversations -->
+            <section id="tab-conversations" class="tab-panel hidden">
+                <div class="card">
+                    <div class="card-title">Conversations</div>
+                    <div class="card-note">
+                        Both directions of each exchange on one row. A row that has a TCP
+                        stream opens it.
+                    </div>
+                    <div class="table-scroll">
+                        <table id="conversationTable">
+                            <thead><tr>
+                                <th data-sort="a">Endpoint A</th>
+                                <th data-sort="b">Endpoint B</th>
+                                <th data-sort="protocol">Protocol</th>
+                                <th data-sort="service">Service</th>
+                                <th class="num" data-sort="packets">Packets</th>
+                                <th class="num" data-sort="bytes">Bytes</th>
+                                <th class="num" data-sort="bytesAB">A→B</th>
+                                <th class="num" data-sort="bytesBA">B→A</th>
+                                <th class="num" data-sort="duration">Duration</th>
+                                <th class="num" data-sort="bitrate">Rate</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
-            <div class="table-container">
-                <div class="chart-title">Packet Details</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Time</th>
-                            <th>Source</th>
-                            <th>Destination</th>
-                            <th>Protocol</th>
-                            <th>Length</th>
-                            <th>Info</th>
-                        </tr>
-                    </thead>
-                    <tbody id="packetTable"></tbody>
-                </table>
-            </div>
+            <!-- Endpoints -->
+            <section id="tab-endpoints" class="tab-panel hidden">
+                <div class="card">
+                    <div class="card-title">Endpoints</div>
+                    <div class="card-note">
+                        Per host. Many peers and many ports from one address is what a
+                        scanner looks like from the outside.
+                    </div>
+                    <div class="table-scroll">
+                        <table id="endpointTable">
+                            <thead><tr>
+                                <th data-sort="ip">Address</th>
+                                <th class="num" data-sort="packets">Packets</th>
+                                <th class="num" data-sort="bytes">Bytes</th>
+                                <th class="num" data-sort="bytesSent">Sent</th>
+                                <th class="num" data-sort="bytesReceived">Received</th>
+                                <th class="num" data-sort="peerCount">Peers</th>
+                                <th class="num" data-sort="portCount">Ports served</th>
+                                <th data-sort="ttl">TTL seen</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TCP streams -->
+            <section id="tab-streams" class="tab-panel hidden">
+                <div class="card">
+                    <div class="card-title">TCP streams</div>
+                    <div class="card-note">
+                        One row per connection. Click a row to follow the stream and read
+                        what was actually exchanged.
+                    </div>
+                    <div class="table-scroll">
+                        <table id="streamTable">
+                            <thead><tr>
+                                <th class="num" data-sort="id">#</th>
+                                <th data-sort="client">Client</th>
+                                <th data-sort="server">Server</th>
+                                <th data-sort="app">Protocol</th>
+                                <th data-sort="state">State</th>
+                                <th class="num" data-sort="packets">Packets</th>
+                                <th class="num" data-sort="payloadBytes">Payload</th>
+                                <th class="num" data-sort="handshakeRtt">Handshake RTT</th>
+                                <th class="num" data-sort="retrans">Retransmits</th>
+                                <th class="num" data-sort="duration">Duration</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Findings -->
+            <section id="tab-expert" class="tab-panel hidden">
+                <div class="card">
+                    <div class="card-title">Findings</div>
+                    <div class="card-note">
+                        Ranked by severity. Every finding names the packets behind it, so
+                        it can be checked rather than believed.
+                    </div>
+                    <div id="findingList"></div>
+                </div>
+            </section>
+
+            <!-- Packets -->
+            <section id="tab-packets" class="tab-panel hidden">
+                <div class="card">
+                    <div class="card-title">Packets</div>
+                    <div class="card-note" id="packetNote"></div>
+                    <div class="table-scroll">
+                        <table id="packetTableEl">
+                            <thead><tr>
+                                <th class="num">#</th>
+                                <th>Time</th>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Protocol</th>
+                                <th class="num">Length</th>
+                                <th>Info</th>
+                            </tr></thead>
+                            <tbody id="packetTable"></tbody>
+                        </table>
+                    </div>
+                    <div style="text-align:center;margin-top:12px">
+                        <button class="btn hidden" id="loadMorePackets">Show more</button>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
+
+    <div id="streamModal"></div>
 
     <script src="./vendor/chart.umd.min.js"></script>
     <script type="module" src="./app.js"></script>
